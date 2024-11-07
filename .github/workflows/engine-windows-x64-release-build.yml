@@ -21,28 +21,17 @@ jobs:
           mkdir engine
           cd engine
           
-          # Set the .gclient file content
-          $gclientContent = @"
-          solutions = [
-              {
-                "custom_deps": {},
-                "deps_file": "DEPS",
-                "managed": False,
-                "name": "src/flutter",
-                "safesync_url": "",
-                "url": "https://github.com/rustdesk/engine.git",
-              },
-          ]
-          "@
-          # Writing .gclient Files
-          $gclientContent | Out-File -FilePath .gclient -Encoding utf8
-          
-          # Pull Flutter source code
-          gclient sync --with_branch_heads --with_tags
-          # fetch flutter
-          git -C src/flutter checkout flutter-3.24.4-fix-desktop-multi-window-plugin-crash
-          git -C src/flutter branch
+          fetch flutter
+          git -C src/flutter checkout db49896cf25ceabc44096d5f088d86414e05a7aa
+
+          $filePath = "src/flutter/shell/platform/windows/flutter_windows_engine.cc"
+          (Get-Content $filePath) -replace 'ClearCurrent', 'MakeCurrent' | Set-Content $filePath
+
+          $filePath = "src/flutter/fml/hex_codec.h"
+          (Get-Content $filePath | ForEach-Object { if ($_ -eq '#include <string_view>') {"#include <string>`n" + $_} else {$_}}) | Set-Content $filePath
+
           git -C src/flutter status
+          
           gclient sync -D
           
           # Compiling the Flutter engine
@@ -59,11 +48,12 @@ jobs:
             Write-Error "Build output files not found!"
           }
 
+      # The file will be uploaded to the release page of the repository, and the tag is the branch name of the currently executing workflow.
       - name: Upload files to a GitHub release
         uses: svenstaro/upload-release-action@2.9.0
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: windows-x64-release.zip
+          file: flutter-engine-windows-x64-release.zip
           tag: ${{ github.ref }}
           overwrite: true
           body: "Flutter Engine Release"
